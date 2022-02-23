@@ -9,9 +9,14 @@ import Wrapper from './components/Wrapper';
 import Header from './components/Header';
 import Loader from './components/Loader';
 import ConnectButton from './components/ConnectButton';
+import Button from './components/Button';
 
 import { Web3Provider } from '@ethersproject/providers';
 import { getChainData } from './helpers/utilities';
+
+import { US_ELECTION_ADDRESS } from './constants/contracts';
+import { getContract } from './helpers/ethers';
+import USElection from './constants/abis/USElection.json';
 
 const SLayout = styled.div`
   position: relative;
@@ -106,16 +111,53 @@ class App extends React.Component<any, any> {
 
     const address = this.provider.selectedAddress ? this.provider.selectedAddress : this.provider?.accounts[0];
 
+    const electionContract = getContract(US_ELECTION_ADDRESS, USElection.abi, library, address);
+
     await this.setState({
       library,
       chainId: network.chainId,
       address,
-      connected: true
+      connected: true,
+      electionContract,
     });
 
     await this.subscribeToProviderEvents(this.provider);
 
   };
+
+
+  public currentLeader = async () => {
+    const { electionContract } = this.state;
+
+    const currentLeader = await electionContract.currentLeader();
+
+    await this.setState({ currentLeader });
+  };
+
+  public submitElectionResult = async () => {
+    const { electionContract } = this.state;
+
+    const dataArr = [
+      'Idaho',
+      51,
+      50,
+      24
+      ];
+      await this.setState({fetchinf: true});
+      const transaction = await electionContract.submitElectionResult(dataArr);
+
+      await this.setState ({transactionHash: transaction.hash});
+
+      const transactionReceipt = await transaction.wait();
+      if (transactionReceipt.status !== 1) {
+        await this.setState({
+          result: 'Transaction failed',
+          fetching: false
+        });
+      }
+  }
+  
+
 
   public subscribeToProviderEvents = async (provider:any) => {
     if (!provider.on) {
@@ -211,6 +253,8 @@ class App extends React.Component<any, any> {
             ) : (
                 <SLanding center>
                   {!this.state.connected && <ConnectButton onClick={this.onConnect} />}
+                  {!this.state.connected && <Button onClick={this.currentLeader}>Display Leader</Button>}
+                  {!this.state.connected && <Button onClick={this.submitElectionResult}>Submit Result</Button>}
                 </SLanding>
               )}
           </SContent>
